@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오늘 뭐 입지? - 날씨 기반 옷 추천</title>
+  <!-- SEO 메타 태그 -->
+  <meta name="description" content="실시간 날씨 and 기온에 맞춰 가장 알맞은 상의, 하의, 신발 조합을 추천해 드립니다.">
+  <meta name="keywords" content="날씨 옷 추천, 오늘 뭐 입지, 기온별 옷차림, 날씨 코디">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* 리셋 및 변수 설정 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      /* 날씨 테마별 배경색 그라데이션 */
+      --bg-sunny: linear-gradient(135deg, #7dd3fc 0%, #0284c7 100%);
+      --bg-cloudy: linear-gradient(135deg, #cbd5e1 0%, #64748b 100%);
+      --bg-rainy: linear-gradient(135deg, #94a3b8 0%, #334155 100%);
+      --bg-snowy: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+      
+      /* 기본 트랜지션 */
+      --transition-speed: 0.5s;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg-sunny);
+      color: #1e293b;
+      padding: 20px;
+      overflow-x: hidden;
+      transition: background var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* 전체 레이아웃 컨테이너 (모바일 우선) */
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    /* Glassmorphism 기본 카드 스타일 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+      transition: all 0.3s ease;
+    }
+
+    /* 헤더 타이틀 */
+    header {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.9);
+      margin-top: 4px;
+      font-weight: 300;
+      text-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    /* 날씨 정보 카드 */
+    .weather-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .weather-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .weather-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .temperature-wrapper {
+      display: flex;
+      align-items: baseline;
+    }
+
+    .temperature {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1;
+    }
+
+    .temp-unit {
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: #0f172a;
+      margin-left: 2px;
+    }
+
+    .weather-status {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 5px;
+    }
+
+    .weather-icon-large {
+      font-size: 4.5rem;
+      filter: drop-shadow(0 8px 12px rgba(0,0,0,0.1));
+      animation: float 4s ease-in-out infinite;
+      user-select: none;
+    }
+
+    /* 새로고침 버튼 */
+    .btn-refresh {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-refresh:hover {
+      background: #ffffff;
+      transform: rotate(180deg) scale(1.05);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    }
+
+    .btn-refresh:active {
+      transform: rotate(180deg) scale(0.95);
+    }
+
+    .btn-refresh svg {
+      width: 20px;
+      height: 20px;
+      fill: #334155;
+    }
+
+    /* 옷 추천 영역 및 카드 스타일 */
+    .recommendation-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .outfit-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .outfit-card {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 20px;
+      padding: 16px 20px;
+      gap: 16px;
+      position: relative;
+      transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+      transform-origin: center;
+    }
+
+    .outfit-card:hover {
+      transform: translateY(-3px);
+      background: rgba(255, 255, 255, 0.75);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .outfit-card.updating {
+      animation: flipOut 0.25s ease-in forwards;
+    }
+
+    .outfit-card.updated {
+      animation: flipIn 0.25s ease-out forwards;
+    }
+
+    .outfit-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-top { background: #fee2e2; color: #ef4444; }
+    .badge-bottom { background: #dbeafe; color: #3b82f6; }
+    .badge-shoes { background: #fef08a; color: #a16207; }
+
+    .outfit-icon {
+      font-size: 2.5rem;
+      user-select: none;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.06));
+    }
+
+    .outfit-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .outfit-category {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #64748b;
+    }
+
+    .outfit-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* 액션 버튼 */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .btn-action {
+      background: #0f172a;
+      color: #ffffff;
+      border: none;
+      border-radius: 20px;
+      padding: 16px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-action:hover {
+      background: #1e293b;
+      transform: translateY(-1.5px);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+    }
+
+    .btn-action:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+    }
+
+    /* 도움말 정보 */
+    .tip-section {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    .tip-icon {
+      font-size: 1.2rem;
+      margin-top: -1px;
+    }
+
+    .tip-text {
+      font-size: 0.82rem;
+      line-height: 1.4;
+      color: #475569;
+      font-weight: 400;
+    }
+
+    /* 애니메이션 Keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes flipOut {
+      0% { transform: scale(1) rotateX(0); opacity: 1; }
+      100% { transform: scale(0.95) rotateX(90deg); opacity: 0; }
+    }
+
+    @keyframes flipIn {
+      0% { transform: scale(0.95) rotateX(-90deg); opacity: 0; }
+      100% { transform: scale(1) rotateX(0); opacity: 1; }
+    }
+
+    /* 데스크톱 이상에서의 반응형 (넓은 해상도 지원) */
+    @media (min-width: 768px) {
+      body {
+        padding: 40px;
+      }
+      
+      .app-container {
+        max-width: 680px;
+      }
+
+      header h1 {
+        font-size: 2.2rem;
+      }
+
+      .outfit-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .outfit-card {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        padding: 24px 16px;
+        min-height: 190px;
+      }
+
+      .outfit-badge {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.7rem;
+      }
+
+      .outfit-icon {
+        font-size: 3.2rem;
+        margin-top: 15px;
+        margin-bottom: 5px;
+      }
+
+      .outfit-details {
+        align-items: center;
+      }
+
+      .outfit-name {
+        font-size: 1rem;
+        margin-top: 4px;
+        word-break: keep-all;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- 타이틀 영역 -->
+    <header>
+      <h1>오늘 뭐 입지?</h1>
+      <p>날씨 맞춤형 최적의 스타일 제안</p>
+    </header>
+
+    <!-- 날씨 표시 패널 -->
+    <section class="glass-card weather-card" aria-label="현재 날씨 정보">
+      <button class="btn-refresh" id="btn-refresh" title="날씨 새로고침" aria-label="날씨 새로고침">
+        <svg viewBox="0 0 24 24">
+          <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+      </button>
+      
+      <div class="weather-main">
+        <div class="weather-info">
+          <div class="temperature-wrapper">
+            <span class="temperature" id="temp-display">--</span>
+            <span class="temp-unit">°C</span>
+          </div>
+          <span class="weather-status" id="status-display">날씨 데이터를 가져오는 중...</span>
+        </div>
+        <div class="weather-icon-large" id="weather-icon">🤔</div>
+      </div>
+    </section>
+
+    <!-- 추천 옷 조합 패널 -->
+    <section class="glass-card" aria-label="오늘의 옷 조합 추천">
+      <h2 class="recommendation-title">
+        <span id="range-badge">🌡️</span>
+        <span id="recommendation-subtitle">추천 코디네이션</span>
+      </h2>
+
+      <div class="outfit-grid">
+        <!-- 상의 카드 -->
+        <article class="outfit-card" id="card-top">
+          <span class="outfit-badge badge-top">Top</span>
+          <div class="outfit-icon" id="icon-top">👕</div>
+          <div class="outfit-details">
+            <span class="outfit-category">상의</span>
+            <span class="outfit-name" id="name-top">불러오는 중...</span>
+          </div>
+        </article>
+
+        <!-- 하의 카드 -->
+        <article class="outfit-card" id="card-bottom">
+          <span class="outfit-badge badge-bottom">Bottom</span>
+          <div class="outfit-icon" id="icon-bottom">👖</div>
+          <div class="outfit-details">
+            <span class="outfit-category">하의</span>
+            <span class="outfit-name" id="name-bottom">불러오는 중...</span>
+          </div>
+        </article>
+
+        <!-- 신발 카드 -->
+        <article class="outfit-card" id="card-shoes">
+          <span class="outfit-badge badge-shoes">Shoes</span>
+          <div class="outfit-icon" id="icon-shoes">👟</div>
+          <div class="outfit-details">
+            <span class="outfit-category">신발</span>
+            <span class="outfit-name" id="name-shoes">불러오는 중...</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 동작 버튼 및 팁 -->
+    <div class="actions">
+      <button class="btn-action" id="btn-shuffle">
+        <span>다른 조합 추천</span>
+        <span>🔄</span>
+      </button>
+      
+      <div class="tip-section">
+        <span class="tip-icon">💡</span>
+        <span class="tip-text" id="tip-text">비가 오는 날에는 자동으로 신발 추천이 방수 기능성 신발로 전환됩니다!</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // 1. 추천 의상 데이터셋 정의 (기온 구간별 최소 2개 조합씩 제공)
+    const outfitDatabase = {
+      under5: [
+        {
+          tag: "한파 대비 룩",
+          top: { name: "두꺼운 기모 맨투맨", icon: "🧥" },
+          bottom: { name: "따뜻한 코듀로이 면바지", icon: "👖" },
+          shoes: { name: "가죽 운동화", icon: "👟" }
+        },
+        {
+          tag: "한파 철벽수비 룩",
+          top: { name: "헤비 롱패딩 & 캐시미어 니트", icon: "❄️" },
+          bottom: { name: "기모 안감 청바지", icon: "👖" },
+          shoes: { name: "스웨이드 스니커즈", icon: "👟" }
+        }
+      ],
+      between6and14: [
+        {
+          tag: "클래식 봄가을 코디",
+          top: { name: "트렌치 코트 & 긴팔 티셔츠", icon: "🧥" },
+          bottom: { name: "스트레이트 청바지", icon: "👖" },
+          shoes: { name: "캐주얼 스니커즈", icon: "👟" }
+        },
+        {
+          tag: "댄디한 데일리 룩",
+          top: { name: "포근한 니트 가디건", icon: "🧶" },
+          bottom: { name: "테이퍼드 베이지 슬랙스", icon: "👖" },
+          shoes: { name: "단정한 더비 슈즈/로퍼", icon: "👞" }
+        }
+      ],
+      between15and19: [
+        {
+          tag: "스마트 캐주얼 룩",
+          top: { name: "옥스포드 셔츠", icon: "👔" },
+          bottom: { name: "다크 블루 청바지", icon: "👖" },
+          shoes: { name: "클래식 운동화", icon: "👟" }
+        },
+        {
+          tag: "편안한 스트리트 룩",
+          top: { name: "오버핏 맨투맨", icon: "👕" },
+          bottom: { name: "치노 면바지", icon: "👖" },
+          shoes: { name: "캔버스 스니커즈", icon: "👟" }
+        }
+      ],
+      between20and24: [
+        {
+          tag: "심플 & 캐주얼 룩",
+          top: { name: "하프 셔츠 & 반팔 레이어드", icon: "👕" },
+          bottom: { name: "슬림 크롭 면바지", icon: "👖" },
+          shoes: { name: "메쉬 러닝화", icon: "👟" }
+        },
+        {
+          tag: "내추럴 린넨 스타일",
+          top: { name: "통풍이 잘되는 린넨 셔츠", icon: "👔" },
+          bottom: { name: "라이트 블루 데님 팬츠", icon: "👖" },
+          shoes: { name: "화이트 가죽 슬립온", icon: "👟" }
+        }
+      ],
+      over25: [
+        {
+          tag: "여름 데일리 베이직",
+          top: { name: "시원한 루즈핏 반팔티", icon: "👕" },
+          bottom: { name: "나일론 밴딩 반바지", icon: "🩳" },
+          shoes: { name: "가벼운 메쉬 스니커즈", icon: "👟" }
+        },
+        {
+          tag: "린넨 리조트 룩",
+          top: { name: "오버사이즈 반팔 셔츠", icon: "👔" },
+          bottom: { name: "시원한 린넨 숏팬츠", icon: "🩳" },
+          shoes: { name: "스포티 피셔맨 샌들", icon: "👡" }
+        }
+      ]
+    };
+
+    // 2. 날씨 환경 상태 관리
+    let currentTemp = 18;
+    let currentStatus = "Sunny"; // Sunny, Cloudy, Rainy, Snowy
+    let outfitIndex = 0; // 현재 선택된 온도 구간 내의 조합 인덱스
+
+    // 3. UI 엘리먼트 캐싱
+    const tempDisplay = document.getElementById("temp-display");
+    const statusDisplay = document.getElementById("status-display");
+    const weatherIcon = document.getElementById("weather-icon");
+    const rangeBadge = document.getElementById("range-badge");
+    const recSubtitle = document.getElementById("recommendation-subtitle");
+    
+    const cardTop = document.getElementById("card-top");
+    const cardBottom = document.getElementById("card-bottom");
+    const cardShoes = document.getElementById("card-shoes");
+
+    const iconTop = document.getElementById("icon-top");
+    const nameTop = document.getElementById("name-top");
+    const iconBottom = document.getElementById("icon-bottom");
+    const nameBottom = document.getElementById("name-bottom");
+    const iconShoes = document.getElementById("icon-shoes");
+    const nameShoes = document.getElementById("name-shoes");
+
+    const btnRefresh = document.getElementById("btn-refresh");
+    const btnShuffle = document.getElementById("btn-shuffle");
+    const tipText = document.getElementById("tip-text");
+
+    // 4. 날씨 데이터 매핑 사전
+    const weatherMap = {
+      Sunny: { text: "맑음", icon: "☀️", class: "weather-sunny", bodyBg: "var(--bg-sunny)" },
+      Cloudy: { text: "흐림", icon: "☁️", class: "weather-cloudy", bodyBg: "var(--bg-cloudy)" },
+      Rainy: { text: "비 옴", icon: "🌧️", class: "weather-rainy", bodyBg: "var(--bg-rainy)" },
+      Snowy: { text: "눈 내림", icon: "❄️", class: "weather-snowy", bodyBg: "var(--bg-snowy)" }
+    };
+
+    // 5. 비즈니스 헬퍼 함수
+
+    // 기온에 따른 옷 데이터 구간 획득 및 레이블 리턴
+    function getOutfitData(temp) {
+      if (temp <= 5) {
+        return { data: outfitDatabase.under5, label: "5°C 이하 (한파 주의)", icon: "❄️" };
+      } else if (temp <= 14) {
+        return { data: outfitDatabase.between6and14, label: "6 ~ 14°C (서늘함)", icon: "🍃" };
+      } else if (temp <= 19) {
+        return { data: outfitDatabase.between15and19, label: "15 ~ 19°C (선선함)", icon: "🌾" };
+      } else if (temp <= 24) {
+        return { data: outfitDatabase.between20and24, label: "20 ~ 24°C (쾌적함)", icon: "🌤️" };
+      } else {
+        return { data: outfitDatabase.over25, label: "25°C 이상 (무더위)", icon: "☀️" };
+      }
+    }
+
+    // 날씨 상태 무작위 생성 (현실적 기후 보정)
+    function generateRandomWeather() {
+      // 기온: -10도에서 35도 사이 생성
+      currentTemp = Math.floor(Math.random() * 46) - 10;
+      
+      const statuses = ["Sunny", "Cloudy", "Rainy", "Snowy"];
+      let possibleStatuses = [];
+
+      if (currentTemp <= 5) {
+        // 겨울 온도: 눈이 올 수 있고, 비는 눈 또는 진눈깨비 성향
+        possibleStatuses = ["Sunny", "Cloudy", "Rainy", "Snowy"];
+      } else {
+        // 영상 6도 이상: 눈을 배제하고 비, 맑음, 흐림만 생성
+        possibleStatuses = ["Sunny", "Cloudy", "Rainy"];
+      }
+
+      // 무작위 날씨 상태 선택
+      currentStatus = possibleStatuses[Math.floor(Math.random() * possibleStatuses.length)];
+      outfitIndex = 0; // 날씨 세팅 시 의상 번들은 첫 번째로 초기화
+
+      updateUI();
+    }
+
+    // 날씨와 옷 정보를 바탕으로 화면 업데이트
+    function updateUI() {
+      // A. 날씨 및 온도 텍스트 반영
+      tempDisplay.textContent = currentTemp;
+      const statusMeta = weatherMap[currentStatus];
+      statusDisplay.textContent = `${statusMeta.text}`;
+      weatherIcon.textContent = statusMeta.icon;
+
+      // B. 날씨 상태에 맞춰 body 배경색 변경
+      document.body.style.background = statusMeta.bodyBg;
+
+      // C. 의상 추천 데이터 가져오기
+      const outfitGroup = getOutfitData(currentTemp);
+      rangeBadge.textContent = outfitGroup.icon;
+      
+      const currentOutfit = outfitGroup.data[outfitIndex % outfitGroup.data.length];
+      recSubtitle.textContent = `${outfitGroup.label} | ${currentOutfit.tag}`;
+
+      // D. 의상 정보 카드로 삽입
+      nameTop.textContent = currentOutfit.top.name;
+      iconTop.textContent = currentOutfit.top.icon;
+      
+      nameBottom.textContent = currentOutfit.bottom.name;
+      iconBottom.textContent = currentOutfit.bottom.icon;
+
+      // E. 비 오는 날 예외 처리 (신발 방수 신발 변경)
+      if (currentStatus === "Rainy") {
+        // 만약 여름(25도 이상) 샌들 조합인 경우엔 방수 샌들, 그 외는 튼튼한 방수 레인부츠
+        if (currentTemp >= 25) {
+          nameShoes.textContent = "방수 샌들 (레인 슈즈)";
+          iconShoes.textContent = "👡";
+        } else {
+          nameShoes.textContent = "방수 레인부츠 (또는 가죽 부츠)";
+          iconShoes.textContent = "👢";
+        }
+        tipText.textContent = "🌧️ 비 오는 날엔 빗물 방지를 위해 방수 신발로 변경되었습니다!";
+      } else {
+        nameShoes.textContent = currentOutfit.shoes.name;
+        iconShoes.textContent = currentOutfit.shoes.icon;
+        
+        if (currentTemp <= 5) {
+          tipText.textContent = "❄️ 한파에는 목도리나 귀마개를 챙겨 체온을 유지해보세요!";
+        } else if (currentTemp >= 25) {
+          tipText.textContent = "☀️ 자외선 차단제와 시원한 음료를 미리 챙기세요!";
+        } else {
+          tipText.textContent = "💡 일교차가 심할 수 있으니 얇은 겉옷을 가방에 챙겨두면 좋습니다.";
+        }
+      }
+    }
+
+    // 카드 전환용 플립/페이드 애니메이션 함수
+    function animateCards(callback) {
+      const cards = [cardTop, cardBottom, cardShoes];
+      
+      // 1 단계: 뒤집혀서 사라지는 연출
+      cards.forEach(card => {
+        card.classList.remove("updated");
+        card.classList.add("updating");
+      });
+
+      // 2 단계: 애니메이션 사라진 시점(250ms)에 데이터 변경 후 다시 나타나는 애니메이션 시작
+      setTimeout(() => {
+        callback();
+        
+        cards.forEach(card => {
+          card.classList.remove("updating");
+          card.classList.add("updated");
+        });
+      }, 250);
+    }
+
+    // 6. 이벤트 리스너 설정
+    
+    // 날씨 새로고침 클릭
+    btnRefresh.addEventListener("click", () => {
+      // 새로고침 버튼 팽이 회전 애니메이션
+      btnRefresh.style.pointerEvents = "none";
+      
+      animateCards(() => {
+        generateRandomWeather();
+      });
+
+      setTimeout(() => {
+        btnRefresh.style.pointerEvents = "auto";
+      }, 600);
+    });
+
+    // 다른 조합 추천 (셔플) 클릭
+    btnShuffle.addEventListener("click", () => {
+      animateCards(() => {
+        const outfitGroup = getOutfitData(currentTemp);
+        // 다음 인덱스로 순환
+        outfitIndex = (outfitIndex + 1) % outfitGroup.data.length;
+        updateUI();
+      });
+    });
+
+    // 7. 초기화 실행
+    window.addEventListener("DOMContentLoaded", () => {
+      generateRandomWeather();
+    });
+  </script>
+</body>
+</html>
